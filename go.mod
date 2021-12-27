@@ -1,3 +1,3 @@
-module github.com/j985chen/gotodo
+module github.com/gotodo
 
 go 1.17
