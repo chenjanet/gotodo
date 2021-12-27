@@ -13,8 +13,10 @@ func Test_manageTodoCommands(t *testing.T) {
 		osArgs  []string // command arguments used for test
 	}{
 		{"No parameters", false, []string{"cmd"}},
-		{"Default parameters", false, []string{"cmd"}},
-		{"Invalid action", true, []string{"cmd", "-action=foo", "item"}},
+		{"Invalid action", true, []string{"cmd", "--action=foo", "item"}},
+		{"Add item", false, []string{"cmd", "--action=add", "item to add"}},
+		{"Add missing item", true, []string{"cmd", "--action=add"}},
+		{"Complete item", false, []string{"cmd", "--action=complete", "1"}},
 	}
 
 	for _, tt := range tests {

@@ -14,15 +14,26 @@ type todoItem struct {
 var items = []todoItem{}
 
 func addTodoItem(item string) {
-	fmt.Print(item)
+	newItem := todoItem{item}
+	items = append(items, newItem)
+	for i := 0; i < len(items); i++ {
+		fmt.Printf("%d.	%s\n", i+1, items[i].item)
+	}
 }
 
 func completeTodoItem(item string) {
-	fmt.Print(item)
+	for i := 0; i < len(items); i++ {
+		if item == items[i].item {
+			items = append(items[:i], items[i+1:]...)
+			break
+		}
+	}
 }
 
 func displayTodoItems() {
-
+	for i := 0; i < len(items); i++ {
+		fmt.Printf("%d.	%s\n", i+1, items[i].item)
+	}
 }
 
 func manageTodoCommands() error {
@@ -39,6 +50,10 @@ func manageTodoCommands() error {
 		return errors.New("Only 'view', 'add', and 'complete' actions are supported")
 	}
 
+	if (*action == "add" || *action == "complete") && len(os.Args) < 3 {
+		return errors.New("'add' and 'complete' commands require a specified item")
+	}
+
 	if *action == "add" {
 		item := flag.Arg(0)
 		addTodoItem(item)
@@ -52,6 +67,22 @@ func manageTodoCommands() error {
 	return nil
 }
 
-func main() {
+func exitGracefully(err error) {
+	fmt.Fprintf(os.Stderr, "error: %v\n", err)
+	os.Exit(1)
+}
 
+func main() {
+	// display usage info when user enters --help option
+	flag.Usage = func() {
+		fmt.Printf("Usage: %s [options] <item to add or complete>\nOptions:\n", os.Args[0])
+		flag.PrintDefaults()
+	}
+
+	// processing user command
+	err := manageTodoCommands()
+
+	if err != nil {
+		exitGracefully(err)
+	}
 }
