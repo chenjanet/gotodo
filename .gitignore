@@ -2,9 +2,6 @@
 *.exe
 *.exe~
 
-# Go Module file
-*.mod
-
 # Test binary
 *.test 
 
