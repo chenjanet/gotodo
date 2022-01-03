@@ -28,7 +28,8 @@ func Test_manageTodoCommands(t *testing.T) {
 			}()
 
 			os.Args = tt.osArgs
-			err := manageTodoCommands()
+			db, err := setupDB()
+			err = manageTodoCommands(db)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getFileData() error = %v, wantErr %v", err, tt.wantErr)
 				return
