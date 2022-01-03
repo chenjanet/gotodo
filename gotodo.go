@@ -6,32 +6,18 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/boltdb/bolt"
 )
 
-type todoItem struct {
-	item string
-}
-
-type todoItemEntry struct {
-	item string `json:"item"`
-}
-
-var items = []todoItem{}
-
-func addTodoItem(db *bolt.DB, item string) error {
-	newItem := todoItem{item}
-	items = append(items, newItem)
-	for i := 0; i < len(items); i++ {
-		fmt.Printf("%d.	%s\n", i+1, items[i].item)
-	}
-	itemBytes, err := json.Marshal(items)
+func addTodoItem(db *bolt.DB, item string, date time.Time) error {
+	itemBytes, err := json.Marshal(item)
 	if err != nil {
 		return fmt.Errorf("could not marshal entry json: %v", err)
 	}
 	err = db.Update(func(tx *bolt.Tx) error {
-		err := tx.Bucket([]byte("DB")).Bucket([]byte("TODOENTRIES")).Put([]byte("items"), []byte(itemBytes))
+		err := tx.Bucket([]byte("DB")).Bucket([]byte("TODOENTRIES")).Put([]byte(date.Format(time.RFC3339)), []byte(itemBytes))
 		if err != nil {
 			return fmt.Errorf("could not insert entry: %v", err)
 		}
@@ -40,31 +26,43 @@ func addTodoItem(db *bolt.DB, item string) error {
 	return err
 }
 
-func completeTodoItem(db *bolt.DB, item string) error {
-	for i := 0; i < len(items); i++ {
-		if item == items[i].item {
-			items = append(items[:i], items[i+1:]...)
-			break
-		}
-	}
-	itemBytes, err := json.Marshal(items)
-	if err != nil {
-		return fmt.Errorf("could not marshal entry json: %v", err)
+func completeTodoItem(db *bolt.DB, item string, date time.Time) error {
+	var foundKey string
+	err := db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte("DB")).Bucket([]byte("TODOENTRIES"))
+		bucket.ForEach(func(key, value []byte) error {
+			if string(value)[1:len(string(value))-1] == item {
+				foundKey = string(key)
+			}
+			return nil
+		})
+		return nil
+	})
+	if foundKey == "" {
+		return nil
 	}
 	err = db.Update(func(tx *bolt.Tx) error {
-		err := tx.Bucket([]byte("DB")).Bucket([]byte("TODOENTRIES")).Put([]byte("items"), []byte(itemBytes))
+		err := tx.Bucket([]byte("DB")).Bucket([]byte("TODOENTRIES")).Delete([]byte(foundKey))
 		if err != nil {
-			return fmt.Errorf("could not insert entry: %v", err)
+			return fmt.Errorf("could not complete entry: %v", err)
 		}
 		return nil
 	})
 	return err
 }
 
-func displayTodoItems(db *bolt.DB) {
-	for i := 0; i < len(items); i++ {
-		fmt.Printf("%d.	%s\n", i+1, items[i].item)
-	}
+func displayTodoItems(db *bolt.DB) error {
+	err := db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte("DB")).Bucket([]byte("TODOENTRIES"))
+		var i int = 1
+		bucket.ForEach(func(key, value []byte) error {
+			fmt.Printf("%d.\t%s\n", i, string(value))
+			i++
+			return nil
+		})
+		return nil
+	})
+	return err
 }
 
 func manageTodoCommands(db *bolt.DB) error {
@@ -85,23 +83,17 @@ func manageTodoCommands(db *bolt.DB) error {
 		return errors.New("'add' and 'complete' commands require a specified item")
 	}
 
+	var err error
+
 	if *action == "add" {
 		item := flag.Arg(0)
-		err := addTodoItem(db, item)
-		if err != nil {
-			return err
-		}
-		return nil
+		err = addTodoItem(db, item, time.Now())
 	} else if *action == "complete" {
 		item := flag.Arg(0)
-		err := completeTodoItem(db, item)
-		if err != nil {
-			return err
-		}
-		return nil
+		err = completeTodoItem(db, item, time.Now())
 	}
-	displayTodoItems(db)
-	return nil
+	err = displayTodoItems(db)
+	return err
 }
 
 func exitGracefully(err error) {
@@ -130,7 +122,6 @@ func setupDB() (*bolt.DB, error) {
 	if dbErr != nil {
 		return nil, fmt.Errorf("could not set up buckets, %v", dbErr)
 	}
-	fmt.Println("DB setup complete")
 	return db, nil
 }
 
